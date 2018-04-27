@@ -1,0 +1,37 @@
+# alarm config file
+
+_START_CONFIG_SECTION
+
+SERIAL_PORT       /dev/ttyACM0
+SERIAL_BAUD_RATE  115200
+CHIME_DEFAULT     true
+# email account used for sending alerts
+SEND_EMAIL_ACCNT  YOUR_GMAIL_ACCT@gmail.com
+SEND_EMAIL_PASSWD YOUR_EMAIL_PASSWORD
+# destination for alerts
+ALERT_EMAIL       EMAIL_TO_RECV_ALERTS (like your-cell@tmomail.net or similar)
+
+
+_START_PIN_SECTION
+
+# USER         PIN   (check [MIN,MAX]_PIN_DIGITS in Config.h)
+Alice          12345
+Bob            4321
+Eve            5678
+
+
+_START_IO_INPUT_SECTION
+
+#TYPE GPIO NAME            OPEN_TONE      VALID_FOR_DELAY_ENTRY
+LOOP   25  Front_Door      TONE_CHIME_2   true
+LOOP   24  Side_Door       TONE_CHIME_3   true
+LOOP   23  Back_Door       TONE_CHIME_1   false
+LOOP   14  Kitchn_Window   TONE_CHIME_1   false
+LOOP   16  Living_Rm_Win   TONE_CHIME_1   false
+LOOP   21  Stair_Window    TONE_CHIME_2   false
+LOOP   20  Front_Window    TONE_CHIME_2   false
+
+_START_IO_OUTPUT_SECTION
+
+#GPIO FUNCTION
+  5   SIREN
