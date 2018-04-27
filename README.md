@@ -6,7 +6,7 @@ The code creates an app that runs as a service on a Raspberry PI to perform the 
 My project has been the replacement of a Honeywell Vista-20 alarm board with an open source solution.  My current alarm setup features a Raspberry PI 3 running the code in this repository, serially coupled with a Arduino Mega.  The Arduino acts as a bi-directional translator between the RPI serial port (8N1@115200) and the Honeywell alarm keypads which speak a weird sort-of-serial 8E2@4800 (see the other repository for details).  The system is installed and working well.  I may upload some videos of keypad operations soon.
 
 The alarm includes the features you expect: 
- - bi-directional comms with the commercially aviable Honeywell 6160 keypads
+ - bi-directional comms with the commercially avialable Honeywell 6160 keypads
  - sense loops monitored via GPIO pins
  - arm-away, arm-stay, disarm with entry delay, etc
  - notification of open zones, alarm status, etc
