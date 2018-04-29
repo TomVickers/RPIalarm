@@ -1,4 +1,18 @@
-// sendEmail.cpp - functions to send an email using curl
+// The file sendEmail.cpp is part of RPIalarm.
+// Copyright (C) 2018  Thomas Vickers
+//
+// RPIalarm is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// RPIalarm is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with RPIalarm.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,7 +98,7 @@ static size_t readCallback(char * ptr, size_t size, size_t nmemb, void * userp)
     return 0;
 }
 
-// send email via curl
+// send email via gmail using curl
 bool sendEmail(const char * from, const char * to, const char * passwd, const char * subj, const char * mesg)
 {
     bool success = true;
@@ -117,10 +131,6 @@ bool sendEmail(const char * from, const char * to, const char * passwd, const ch
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
         curl_easy_setopt(curl, CURLOPT_READDATA, &data);
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-        // useful for debugging encryped traffic
-        //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
-        //printf("html email:\n%s\n", data.email);
 
         // send the message
         CURLcode res = curl_easy_perform(curl);

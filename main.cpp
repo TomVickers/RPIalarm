@@ -1,4 +1,18 @@
-// main.cpp - main func for alarm monitoring app
+// The file main.cpp is part of RPIalarm.
+// Copyright (C) 2018  Thomas Vickers
+//
+// RPIalarm is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// RPIalarm is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with RPIalarm.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "stdafx.h"
 #include <string.h>
@@ -18,6 +32,8 @@
 static volatile uint8_t done = 0;  // flag used to shut down main while loop
 
 #define MIL_TO_12HR(x)  ((x) % 12 == 0 ? 12 : (x) % 12)
+
+void handleVoltMsg(AlarmManager * pAlarmManager, const char * msg, int msgLen);
 
 // interrupt handler to capture kill/interrupt signal
 void intHandler(int notUsed)
@@ -47,17 +63,9 @@ int main(int argc, char *argv[])
     }
     else  // suceeded in opening the serial port
     {
-        // Not sure why this is needed... but I have figured out that
-        // the Raspberry PI 3 serial port is squirrely on the first open
-        // after boot.  Since I run this app as a service at boot time,
-        // this open-close-reopen sequence fixes the issue.
-        //
-        // I have tried a simple timed delay before I start the alarm 
-        // service, but that does not fix it. If anyone knows why the 
-        // Pi serial port behaves like this on first boot, please let me know.
-        //
-        // It is also possible that it has somehting to do with my Arduino
-        // code.  Perhaps closing/re-opening the port fixes an issue there....
+        // My Raspberry PI 3 serial port is squirrely on the first open after boot.
+        // Since I run this app as a service at boot time, this open-close-reopen 
+        // sequence fixes the issue.  A simply delay won't fix it.
         
         sleep(1);       // appears to be needed on my setup
         serial.fini();  // close the serial port
@@ -76,7 +84,7 @@ int main(int argc, char *argv[])
         logMsg("Failed to open socket\n");
     }
 
-    Loop * pLoop = config.getLoop();   // pointer to array of sense loops
+    Loop * pLoop = config.getLoop();   // get pointer to array of sense loops
 
 #ifdef _HAVE_WIRING_PI
     wiringPiSetupGpio(); // Initialize wiringPi - Broadcom pin numbering (MUST BE RUN AS ROOT)
@@ -135,7 +143,7 @@ int main(int argc, char *argv[])
                     break;
 
                 case SERIAL_CMD_VOLTS:
-                    // FIXME - add code to handle volts msg
+                    handleVoltMsg(&alarmManager, readBuf, readBufIdx);
                     break;
 
                 case SERIAL_CMD_ERROR:
@@ -193,7 +201,7 @@ int main(int argc, char *argv[])
 
 // --------------------------------------------- support funcs ------------------------------------------
 
-void handleVoltMsg(AlarmManager * pAlarmManager)
+void handleVoltMsg(AlarmManager * pAlarmManager, const char * msg, int msgLen)
 {
     // FIXME - Handle voltage message from arduino
     // If no AC power, look at what should be done differently to reduce power consumption
