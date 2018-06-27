@@ -124,6 +124,8 @@ void Serial::sendF7msg(AlarmManager * pAlarmManager, int hour, int min)
 
         if (pAlarmManager->getAltTextActive())
         {
+            usleep(MIN_MS_BETWEEN_F7_MSGS * 1000);  // sleep MIN_MS_BETWEEN_F7_MSGS between F7 & F7A msg
+
             pAlarmManager->makeF7msg(buf, hour, min, true);
             writeBytes = write(fd, (void *)buf, strlen(buf));
     

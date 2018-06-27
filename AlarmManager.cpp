@@ -16,12 +16,10 @@
 
 #include "AlarmManager.h"
 #include <string.h>
+#include <unistd.h>
 #include "sendEmail.h"
 #include "logMsg.h"
-
-#ifdef _HAVE_WIRING_PI
 #include <wiringPi.h>
-#endif
 
 // returns a timestamp (number of milliseconds since power-on)
 uint32_t AlarmManager::getTimestamp(void)
@@ -29,6 +27,20 @@ uint32_t AlarmManager::getTimestamp(void)
     struct timespec spec;
     clock_gettime(CLOCK_MONOTONIC, &spec);
     return spec.tv_sec * 1000 + spec.tv_nsec/1000000;
+}
+
+// return pointer to struct containing time since start
+t_ElapsedTime * AlarmManager::elapsedTime(time_t start)
+{
+    static t_ElapsedTime etime;
+    time_t now;
+    time(&now);
+    int diffSecs = (int)difftime(now, start);
+    etime.mins = (diffSecs / 60) % 60;
+    etime.hours = (diffSecs / (60*60)) % 24;
+    etime.days = diffSecs / (24*60*60);
+    etime.secs = diffSecs % 60;
+    return &etime;
 }
 
 // initialize the alarm manager class.  
@@ -339,21 +351,37 @@ void AlarmManager::updateState(void)
     turnOnBacklight();   // updating F7 message, turn on LCD backlight
 }
 
-// check the sense loops and update alarm state if needed.  Returns: true if message should be pushed to keypad
-bool AlarmManager::checkLoops(uint32_t * prevLoopMask)
+// read the sense loops.  Returns: 32-bit loop mask 
+uint32_t AlarmManager::readLoops(void)
 {
-    loopMask = 0;  // init all closed (safe)
+    uint32_t loops = 0;
 
-#ifdef _HAVE_WIRING_PI
     // read the sense loop state by doing a digital read of associated GPIO pin (high => open loop)
     for (int i=0; i < loopCount; i++)
     {
         if (digitalRead((pLoop+i)->gpio))
         {
-            loopMask |= (1 << i);
+            loops |= (1 << i);
         }
     }
-#endif
+    return loops;
+}
+
+// check the sense loops and update alarm state if needed.  Returns: true if message should be pushed to keypad
+bool AlarmManager::checkLoops(uint32_t * prevLoopMask)
+{
+    uint32_t sampleLoop = readLoops();        // sample loops
+
+    if ((sampleLoop ^ *prevLoopMask) != 0)  // if a bit in the loop mask changed
+    {
+        usleep(10 * 1000); // wait 10 ms 
+
+        // check if loop change is stable.  if so, this is probably not noise
+        if (sampleLoop == readLoops())
+        {
+            loopMask = sampleLoop;
+        }
+    }
 
     uint32_t diffMask = loopMask ^ *prevLoopMask;  // use exclusive or to determine which bits have changed state
 
@@ -382,12 +410,10 @@ void AlarmManager::setTone(uint8_t toneVal)
 {
     tone = toneVal;
 
-#ifdef _HAVE_WIRING_PI
     if (sirenGpioPin >= 0)
     {
         digitalWrite(sirenGpioPin, tone == TONE_ALARM ? 1 : 0);
     }
-#endif
 }
 
 // check all the timeout conditions.  Returns: true if message should be pushed to keypad
@@ -591,9 +617,10 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
         char msg[ALERT_MSG_SIZE];
         if (func == PIN_FUNC_DISARM)
         {
+            setDisarm();
             sprintf(msg, "Alarm disarmed by %s", (pPin+user)->name);
             sendAlertMsg(msg);
-            setDisarm();
+            logMsg("%s\n", msg);
         }
         else if ((func == PIN_FUNC_AWAY || func == PIN_FUNC_STAY) && armed == DISARMED)  // not already armed
         {
@@ -624,20 +651,16 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
         {
             chime = !chime;  // toggle chime mode
             setTempMsg(NULL, chime ? "Chime enabled" : "Chime disabled");
+            logMsg("%s\n", chime ? "Chime enabled" : "Chime disabled");
         }
         else if (func == PIN_FUNC_TEST)  // display alarm uptime
         {
             char msg[17];
-            time_t now;
-            time(&now);
-            int diffSecs = (int)difftime(now, startTime);
-            int mins = (diffSecs / 60) % 60;
-            int hours = (diffSecs / (60*60)) % 24;
-            int days = diffSecs / (24*60*60);
-            if (days < 1)
-                sprintf(msg, "Uptime  %02d:%02d:%02d", hours, mins, diffSecs % 60);
+            t_ElapsedTime * eTime = elapsedTime(startTime);
+            if (eTime->days < 1)
+                sprintf(msg, "Uptime  %02d:%02d:%02d", eTime->hours, eTime->mins, eTime->secs);
             else
-                sprintf(msg, "Up %6dd %02d:%02d", days, hours, mins);
+                sprintf(msg, "Up %6dd %02d:%02d", eTime->days, eTime->hours, eTime->mins);
             setTempMsg(NULL, msg);
         }
         else if (func == PIN_FUNC_CODE)  // write recent logMsgs to log file
@@ -646,9 +669,17 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
             sprintf(msg, "Msgs sent to log");
             setTempMsg(NULL, msg);
         }
-        else  // unsupported func NONE, MAX, BYPASS, INSTANT
+        else if (func == PIN_FUNC_INSTANT)  // immediately trigger an alarm!
+        {
+            setAlarm();
+            sprintf(msg, "Instant Alarm triggered by %s", (pPin+user)->name);
+            sendAlertMsg(msg);
+            logMsg("%s\n", msg);
+        }
+        else  // unsupported func NONE, MAX, BYPASS
         {
             setTempMsg(NULL, "Not supported");
+            logMsg("unsupported pin func %d entered by %s\n", func, (pPin+user)->name);
         }
     }
     updateState();  // update alarm state based on received keypad message
@@ -666,9 +697,9 @@ void AlarmManager::makeF7msg(char * buf, int hour, int min, bool altText)
             armed == ARMED_STAY ? '1' : '0', power ? '1' : '0', backlight ? '1' : '0',
             altLine1, hour, tm_min, altLine2);
 #else
-        // send abbreviated F7A msg
-        sprintf(buf, "F7A t=%d c=%c r=%c a=%c b=%c 1=%-11.11s%2d:%02d 2=%-16.16s\n",
-            tone, chime ? '1' : '0', ready ? '1' : '0', armed == DISARMED ? '0' : '1',
+        // send abbreviated F7A msg (tone always zero for alt msg)
+        sprintf(buf, "F7A t=0 c=%c r=%c a=%c b=%c 1=%-11.11s%2d:%02d 2=%-16.16s\n",
+            chime ? '1' : '0', ready ? '1' : '0', armed == DISARMED ? '0' : '1',
             backlight ? '1' : '0', altLine1, hour, min, altLine2);
 #endif
     }

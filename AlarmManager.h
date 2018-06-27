@@ -43,6 +43,15 @@ enum {
     ARMED_AWAY
 };
 
+// elapsed time struct
+struct t_ElapsedTime {
+    int secs;
+    int mins;
+    int hours;
+    int days;
+};
+
+
 class AlarmManager
 {
 public:
@@ -72,10 +81,13 @@ public:
     }
 
     static uint32_t getTimestamp(void);
+    static t_ElapsedTime * elapsedTime(time_t start);
 
 private:
     uint8_t getPinDigits(int kp);
     uint8_t getPinDigits(void);
+
+    uint32_t readLoops(void);
 
     bool checkPinTimeout(uint32_t ms);
     bool processTimeouts(uint32_t ms);
@@ -93,7 +105,6 @@ private:
 
     int  validatePin(uint8_t * func);
     int  loopIndex(uint32_t mask);
-
 
     uint8_t  zone;                                  // byte 0-FF
     uint8_t  tone;                                  // (nibble) 0-7 valid

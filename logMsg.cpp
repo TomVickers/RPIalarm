@@ -114,10 +114,12 @@ void logMsg(const char *fmt, ...) // vararg format
     static char msg[LOG_MSG_LEN];
     msg[0] = '\0';
 
-    time_t currTime = time(NULL);
-    struct tm * pTime = localtime(&currTime);
+    struct timespec spec;
+    clock_gettime(CLOCK_REALTIME, &spec);
+    struct tm * pTime = localtime(&spec.tv_sec);
 
-    int i = sprintf(msg, "%02d:%02d:%02d ", pTime->tm_hour, pTime->tm_min, pTime->tm_sec);
+    int i = sprintf(msg, "%02d:%02d:%02d.%03d ", pTime->tm_hour, pTime->tm_min, pTime->tm_sec,
+        (int)(spec.tv_nsec / 1000000));
 
     va_list pArg;
     va_start(pArg, fmt);

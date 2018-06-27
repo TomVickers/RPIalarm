@@ -19,5 +19,3 @@ Since the code runs on a RPI, it was easy to include features not available on a
 The Makefile explains most of what is needed to build the code.  It currently depends on having the WiringPi lib (wiringpi.com) and the libcurl4-nss-dev package installed.  Many items can be configured in the alarm_config file without requiring a recompile.
 
 You will see some places (like alarm_config) where you need to plug in your own values for pin codes, etc.  The text message notification works by utilizing a gmail account to send email messages to whatever email address you specify.  I specify an email address connected to my phone sms account.
-
-A quick note on home/computer security.  Obviously, if someone can remotely access your RPi, they can compromise the security of your alarm system.  Think carefully before allowing access through your router to any ports on your RPI.  I am not including details about how I remotely connect to my RPi to avoid compromising the security of my setup.

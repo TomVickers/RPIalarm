@@ -25,6 +25,9 @@ static const uint32_t BACKLIGHT_ON_TIME   = 10000;   // keep backlight on for 10
 static const uint32_t TEMP_MSG_TIMEOUT    = 3000;    // ms to display temp mesg
 static const uint32_t PIN_TIMEOUT         = 5000;    // timeout pin after no key presses
 static const uint32_t CHIME_TIMEOUT       = 2000;    // time between CHIME tone and disable
+static const uint32_t MAIN_LOOP_SLEEP_MS  = 10;      // main loop sleep ms
+
+static const uint32_t MIN_MS_BETWEEN_F7_MSGS = 200;  // don't send F7 messages faster than this
 
 static const uint32_t ALERT_MSG_REPEAT_TIMEOUT = 60*1000; // time between send msg repeats
 

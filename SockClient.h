@@ -29,7 +29,7 @@ public:
 
 private:
     int clientSock;
-
+    int failCount;
 };
 
 // end of SockClient.h

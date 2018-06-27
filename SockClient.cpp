@@ -26,29 +26,39 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include "Config.h"
 #include "SockClient.h"
 
-static const uint16_t port = YOUR_SERVER_PORT;
+static const uint16_t port = 8088;
+
+// if socket fails to init, wait this long before retry
+static const int SOCKET_RESET_WAIT_MS = 60 * 1000;
+static const int FAIL_RETRY_COUNT = SOCKET_RESET_WAIT_MS / MAIN_LOOP_SLEEP_MS;
 
 bool SockClient::init(void)
 {
+    failCount = 0;
     clientSock = socket(PF_INET, SOCK_STREAM, 0);
 
     if (clientSock >= 0)
     {
-  	    struct sockaddr_in serverAddr;
+        struct sockaddr_in serverAddr;
         socklen_t addrSize = sizeof(serverAddr);
 
-  	    serverAddr.sin_family = AF_INET;
-  	    serverAddr.sin_port = htons(port);
-  	    serverAddr.sin_addr.s_addr = inet_addr("YOUR_SERVER_IP_ADDRESS");
-	    memset(serverAddr.sin_zero, 0, sizeof(serverAddr.sin_zero));
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(port);
+        serverAddr.sin_addr.s_addr = inet_addr("YOUR_SERVER_IP_ADDRESS");
+        memset(serverAddr.sin_zero, 0, sizeof(serverAddr.sin_zero));
 
         if (connect(clientSock, (struct sockaddr *)&serverAddr, addrSize) >= 0)
         {
             // change socket to non-blocking
             fcntl(clientSock, F_SETFL, fcntl(clientSock, F_GETFL, 0) | O_NONBLOCK);
             return true;
+        }
+        else  // connect failed, close open socket
+        {
+            fini();
         }
     }
     return false;
@@ -69,9 +79,12 @@ int SockClient::recvMsg(char * buf, int bufSize)
 
     if (clientSock < 0) // socket is not open
     {
-        init();  // try and open socket
+        if (++failCount > FAIL_RETRY_COUNT)
+        {
+            init();  // try and open socket
+        }
     }
-    else  // socket is open
+    if (clientSock >= 0) 
     {
         readBytes = recv(clientSock, buf, bufSize-1, 0);
         if (readBytes > 0)
@@ -79,25 +92,15 @@ int SockClient::recvMsg(char * buf, int bufSize)
             //fprintf(stderr, "Recv %d bytes: %s\n", readBytes, buf);
             return readBytes;
         }
-        else  // socket closed or failed to read, re-try once
+        else  // socket closed or failed to read
         {
             if (readBytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
             {
-                // timeout, nothing to read
-                return 0;
+                return 0; // timeout, nothing to read
             }
             else
             {
-                fini();
-                if (init())
-                {
-                    readBytes = recv(clientSock, buf, bufSize-1, 0);
-                    if (readBytes > 0)
-                    {
-                        //fprintf(stderr, "2nd try: Recv %d bytes: %s\n", readBytes, buf);
-                        return readBytes;
-                    }
-                }
+                fini();  // some other failure. close socket this time, will re-open on next recvMsg
             }
         }
     }
@@ -108,7 +111,10 @@ bool SockClient::sendMsg(const char * msg)
 {
     if (clientSock < 0)
     {
-        init();  // try and open socket
+        if (++failCount > FAIL_RETRY_COUNT)
+        {
+            init();  // try and open socket
+        }
     }
     if (clientSock >= 0)
     {
@@ -116,18 +122,10 @@ bool SockClient::sendMsg(const char * msg)
         {
             return true;
         }
-        else  // try and re-init the socket once
+        else  // sock send failed
         {
-            fini();
-            if (init())
-            {
-                if (send(clientSock, msg, strlen(msg), 0) >= 0)
-                {
-                    return true;
-                }
-            }
+            fini();  // close socket this time, will re-open on next try
         }
-            
     }
     return false;
 }

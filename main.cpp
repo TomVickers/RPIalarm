@@ -18,10 +18,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-
-#ifdef _HAVE_WIRING_PI
-#include <wiringPi.h>
-#endif
+#include <wiringPi.h>      // need the wiringPi library
 
 #include "Config.h"        // user/zone structs & defines
 #include "AlarmManager.h"  // alarm manager class definition
@@ -86,7 +83,6 @@ int main(int argc, char *argv[])
 
     Loop * pLoop = config.getLoop();   // get pointer to array of sense loops
 
-#ifdef _HAVE_WIRING_PI
     wiringPiSetupGpio(); // Initialize wiringPi - Broadcom pin numbering (MUST BE RUN AS ROOT)
 
     for (int i=0; i < config.getLoopCount(); i++)  // configure pin io for sense loops
@@ -99,7 +95,6 @@ int main(int argc, char *argv[])
         int pin = (config.getOutputs()+i)->gpio;
         pinMode(pin, OUTPUT);  // set as output
     }
-#endif // _HAVE_WIRING_PI
 
     alarmManager.init(&config); // init AlarmManager class (pass in pointer to config class)
 
@@ -179,16 +174,26 @@ int main(int argc, char *argv[])
             sendF7msgNow = true;
         }
 
-        // check to see if it is time to send a new F7 msg (don't send faster than every 200ms)
-        if (sendF7msgNow && AlarmManager::getTimestamp() - alarmManager.getLastMsgTime() > 200)
+        // check to see if it is time to send a new F7 msg (don't send faster than every MIN_MS_BETWEEN_F7_MSGS)
+        if (sendF7msgNow)
         {
-            time_t currTime = time(NULL);
-            struct tm * pTime = localtime(&currTime);
-            serial.sendF7msg(&alarmManager, MIL_TO_12HR(pTime->tm_hour), pTime->tm_min);
-            sock.sendMsg(alarmManager.getSockMsg(MIL_TO_12HR(pTime->tm_hour), pTime->tm_min));
-            sendF7msgNow = false;
+            uint32_t ts = AlarmManager::getTimestamp();
+            uint32_t lts = alarmManager.getLastMsgTime();
+            if (ts - lts > MIN_MS_BETWEEN_F7_MSGS)
+            {
+                //logMsg("send F7, curr %u, last %u, diff ms = %u\n", ts, lts, ts - lts);
+                time_t currTime = time(NULL);
+                struct tm * pTime = localtime(&currTime);
+                serial.sendF7msg(&alarmManager, MIL_TO_12HR(pTime->tm_hour), pTime->tm_min);
+                sock.sendMsg(alarmManager.getSockMsg(MIL_TO_12HR(pTime->tm_hour), pTime->tm_min));
+                sendF7msgNow = false;
+            }
+            else
+            {
+                logMsg("wait to send F7, curr %u, last %u, diff ms = %u\n", ts, lts, ts - lts);
+            }
         }
-        usleep(100 * 1000);  // sleep 100ms
+        usleep(MAIN_LOOP_SLEEP_MS * 1000);  // main loop sleep 
     }
     sock.fini();
     serial.fini();

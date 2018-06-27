@@ -1,20 +1,13 @@
 # Makefile for alarm
 #
 
-# WiringPi lib needed for functionality (wiringpi.con).  May be disabled to test compile on platform without wiringPi
-USE_WIRING_PI=yes
-
+# WiringPi lib required (wiringpi.con)
 # install libcurl4-nss-dev for curl lib
 
 INCLUDE= stdafx.h Config.h AlarmManager.h Serial.h sendEmail.h SockClient.h logMsg.h
 
-DEFINES= 
-LDFLAGS= -Wall -lcurl
-
-ifdef USE_WIRING_PI
-  DEFINES+= -D_HAVE_WIRING_PI
-  LDFLAGS+= -lwiringPi
-endif
+DEFINES=
+LDFLAGS= -Wall -lcurl -lwiringPi
 
 CFLAGS= -Wall -Wno-write-strings -O2 $(DEFINES)
 OBJS= main.o Config.o AlarmManager.o Serial.o sendEmail.o SockClient.o logMsg.o
