@@ -29,7 +29,7 @@
 #include "Config.h"
 #include "SockClient.h"
 
-static const uint16_t port = 8088;
+static const uint16_t port = YOUR_SERVER_PORT;
 
 // if socket fails to init, wait this long before retry
 static const int SOCKET_RESET_WAIT_MS = 60 * 1000;
