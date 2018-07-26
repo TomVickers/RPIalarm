@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     AlarmManager alarmManager; // handles alarm functions
     Serial serial;             // handles serial communication
     SockClient sock;           // handles socket communication with web app
-    initLogMsg();
+    initLogMsg();              // init logging utility
 
     if (!config.readFile(ALARM_CONFIG_FILE))
     {
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
     if (!sock.init())
     {
-        logMsg("Failed to open socket\n");
+        logMsg(LOG_DEFAULT, "Failed to open socket\n");
     }
 
     Loop * pLoop = config.getLoop();   // get pointer to array of sense loops
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     {
         if (READ_BUF_SIZE-readBufIdx-1 < 1)
         {
-            logMsg("read buffer overflow, discarding read buffer\n");
+            logMsg(LOG_DEFAULT, "read buffer overflow, discarding read buffer\n");
             readBufIdx = 0;
         }
         bool newLine = false;
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 
                 case SERIAL_CMD_ERROR:
                 default:
-                    logMsg("parseMsg error, resend F7 msg\n");
+                    logMsg(LOG_DEFAULT, "parseMsg error, resend F7 msg\n");
                     sendF7msgNow = true;  // resend msg that failed
                     break;
             }
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-                logMsg("Recv unexpected msg on socket '%s'\n", sockBuf);
+                logMsg(LOG_DEFAULT, "Recv unexpected msg on socket '%s'\n", sockBuf);
             }
         }
         
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
             uint32_t lts = alarmManager.getLastMsgTime();
             if (ts - lts > MIN_MS_BETWEEN_F7_MSGS)
             {
-                //logMsg("send F7, curr %u, last %u, diff ms = %u\n", ts, lts, ts - lts);
+                //logMsg(LOG_DEFAULT, "send F7, curr %u, last %u, diff ms = %u\n", ts, lts, ts - lts);
                 time_t currTime = time(NULL);
                 struct tm * pTime = localtime(&currTime);
                 serial.sendF7msg(&alarmManager, MIL_TO_12HR(pTime->tm_hour), pTime->tm_min);
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-                logMsg("wait to send F7, curr %u, last %u, diff ms = %u\n", ts, lts, ts - lts);
+                logMsg(LOG_DEFAULT, "wait to send F7, curr %u, last %u, diff ms = %u\n", ts, lts, ts - lts);
             }
         }
         usleep(MAIN_LOOP_SLEEP_MS * 1000);  // main loop sleep 

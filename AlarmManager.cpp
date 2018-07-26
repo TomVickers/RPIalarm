@@ -213,11 +213,14 @@ void AlarmManager::setDisarm(void)
 // convert loop bitmask value into integer loop index
 int AlarmManager::loopIndex(uint32_t mask)
 {
-    for (int i=0; i < loopCount; i++)
+    if (mask != 0)
     {
-        if ((mask >> i) & 0x1)
+        for (int i=0; i < loopCount; i++)
         {
-            return i;
+            if ((mask >> i) & 0x1)
+            {
+                return i;
+            }
         }
     }
     return 0;
@@ -276,6 +279,7 @@ void AlarmManager::updateState(void)
 {
     char msg[ALERT_MSG_SIZE];
     altTextActive = false;     // default alternate F7 msg to off
+    int openLoop = loopIndex(loopMask);
 
     ready = (loopMask == 0); // all loops are closed, ready for arming
 
@@ -283,12 +287,26 @@ void AlarmManager::updateState(void)
     {
         setAlarm();  // set alarm state 
     }
-    else if (armed == ARMED_STAY && loopMask)  // alarm should be going off, loop opened while in ARMED_STAY
+    else if (armed == ARMED_STAY && loopMask)
     {
-        int openLoop = loopIndex(loopMask);
+        // alarm should be going off, loop opened while in ARMED_STAY
         sprintf(msg, "Alarm! %s opened while armed-stay set", (pLoop+openLoop)->name);
         sendAlertMsg(msg);
         setAlarm();  // set alarm state 
+    }
+    else if (armed == ARMED_BYPASS && loopMask)
+    {
+        if ((pLoop+openLoop)->bypassAllowed == false)
+        {
+            // alarm should be going off, non-bypass loop opened while in ARMED_BYPASS
+            sprintf(msg, "Alarm! %s opened while armed-bypass set", (pLoop+openLoop)->name);
+            sendAlertMsg(msg);
+            setAlarm();  // set alarm state 
+        }
+        else
+        {
+             logMsg(LOG_DEFAULT, "Bypass loop %s opened while alarm set\n", (pLoop+openLoop)->name);
+        }
     }
     else if (armed != DISARMED) // system is armed (or arm delay)
     {
@@ -300,7 +318,7 @@ void AlarmManager::updateState(void)
         }
         else // armed, not in leave delay 
         {
-            sprintf(line1, "Armed %s      ", armed == ARMED_STAY ? "Stay" : "Away");
+            sprintf(line1, "Armed %s      ", armed == ARMED_STAY ? "Stay" : armed == ARMED_AWAY ? "Away" : "Byps");
 
             if (loopMask && armed == ARMED_AWAY && !disarmTimeoutActive)
             {
@@ -374,10 +392,32 @@ bool AlarmManager::checkLoops(uint32_t * prevLoopMask)
 
     if ((sampleLoop ^ *prevLoopMask) != 0)  // if a bit in the loop mask changed
     {
-        usleep(10 * 1000); // wait 10 ms 
+        bool loopNoise = false;
+        uint32_t loopVal;
 
-        // check if loop change is stable.  if so, this is probably not noise
-        if (sampleLoop == readLoops())
+        uint32_t start = getTimestamp();
+        uint32_t now;
+        uint32_t count = 0;
+
+        // start a tight loop for 400 ms to make sure this is a real loop change and not noise
+        while (((now = getTimestamp()) - start) < 400)
+        {
+            if (sampleLoop != (loopVal = readLoops()))
+            {
+                loopNoise = true; // loop state is not stable, ignore for now
+                break;
+            }
+            count++;
+        }
+
+        if (loopNoise)
+        {
+            int idx = loopIndex(sampleLoop ^ *prevLoopMask);
+            logMsg(LOG_DEBUG_1, "noise: loop %s %s only %ums, count %u\n", (pLoop+idx)->name, 
+                ((sampleLoop >> idx) & 0x1) ? "opened" : "closed", now - start, count);
+            return false;
+        }
+        else
         {
             loopMask = sampleLoop;
         }
@@ -387,18 +427,20 @@ bool AlarmManager::checkLoops(uint32_t * prevLoopMask)
 
     if (diffMask != 0)  // at least one of the loops changed state
     {
-        if (tone == TONE_NONE) // no alarm tone currently sounding (don't override timeout or alarm tones)
-        {
-            int idx = loopIndex(diffMask);
-            if ((loopMask >> idx) & 0x1)             // loop that changed was opened
-            {
-                if (chime)                           // chime mode is enabled
-                {
-                    setTone((pLoop+idx)->chimeTone); // set chime for opened loop
-                    chimeMsgTime = getTimestamp();   // store time of setting chime
-                }
-            }
-        }
+         int idx = loopIndex(diffMask);
+         if ((loopMask >> idx) & 0x1)             // loop that changed was opened
+         {
+             // only chime if no alarm tone currently sounding (don't override timeout or alarm tones)
+             if (chime && tone == TONE_NONE)
+             {
+                 setTone((pLoop+idx)->chimeTone); // set chime for opened loop
+                 chimeMsgTime = getTimestamp();   // store time of setting chime
+             }
+             logMsg(LOG_DEFAULT, "Loop %s opened\n", (pLoop+idx)->name);
+         }
+         else
+             logMsg(LOG_DEFAULT, "Loop %s closed\n", (pLoop+idx)->name);
+
         updateState(); // update alarm state
         *prevLoopMask = loopMask;
         return true;   // send update to keypad
@@ -432,7 +474,7 @@ bool AlarmManager::checkTimeouts(void)
     }
     else if (backlight && ms - backlightOnTime > BACKLIGHT_ON_TIME)  // time to turn off backlight
     {
-        //logMsg("backlight turned off: curr ms %u, backlightOnTime %u, diff %u\n", ms, 
+        //logMsg(LOG_DEFAULT, "backlight turned off: curr ms %u, backlightOnTime %u, diff %u\n", ms, 
         //    backlightOnTime, ms - backlightOnTime);
         backlight = false;
         updateKeypad = true;
@@ -586,7 +628,7 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
     uint32_t ms = getTimestamp();
     if (bufLen < 12)
     {
-        logMsg("processKeyMsg received short command\n");
+        logMsg(LOG_DEFAULT, "processKeyMsg received short command\n");
         return;
     }
 
@@ -598,7 +640,7 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
     int keyCount = min(atoi(buf+8), MAX_PIN_DIGITS);
     int offset = 12;  // offset to first key value
 
-    //logMsg("processing KEYS msg from keypad %d with %d keys\n", keypad, keyCount);
+    //logMsg(LOG_DEFAULT, "processing KEYS msg from keypad %d with %d keys\n", keypad, keyCount);
 
     for (int i=0; i < keyCount && offset < bufLen && *(buf+offset) == '0'; i++)  // parse pressed keys
     {
@@ -620,9 +662,9 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
             setDisarm();
             sprintf(msg, "Alarm disarmed by %s", (pPin+user)->name);
             sendAlertMsg(msg);
-            logMsg("%s\n", msg);
+            logMsg(LOG_DEFAULT, "%s\n", msg);
         }
-        else if ((func == PIN_FUNC_AWAY || func == PIN_FUNC_STAY) && armed == DISARMED)  // not already armed
+        else if ((func == PIN_FUNC_AWAY || func == PIN_FUNC_STAY || func == PIN_FUNC_BYPASS) && armed == DISARMED)  // not already armed
         {
             if (loopMask == 0)  // all loops are closed, ready for arming
             {
@@ -634,16 +676,21 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
                     timeoutStart = getTimestamp();
                     timeoutRemain = DEFAULT_TIMEOUT_MS / 1000;
                 }
-                else
+                else if (func == PIN_FUNC_STAY)
                 {
                     sprintf(msg, "Alarm armed-stay by %s", (pPin+user)->name);
                     armed = ARMED_STAY;
+                }
+                else  // func == PIN_FUNC_BYPASS
+                {
+                    sprintf(msg, "Alarm armed-bypass by %s", (pPin+user)->name);
+                    armed = ARMED_BYPASS;
                 }
                 sendAlertMsg(msg);
             }
             else
             {
-                logMsg("attempt to arm failed. Sense loop fault.  loopmask = 0x%08x\n", loopMask);
+                logMsg(LOG_DEFAULT, "attempt to arm failed. Sense loop fault.  loopmask = 0x%08x\n", loopMask);
                 //fprintf(stderr, "Can't arm, sense loop fault\n");
             }
         }
@@ -651,7 +698,7 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
         {
             chime = !chime;  // toggle chime mode
             setTempMsg(NULL, chime ? "Chime enabled" : "Chime disabled");
-            logMsg("%s\n", chime ? "Chime enabled" : "Chime disabled");
+            logMsg(LOG_DEFAULT, "%s\n", chime ? "Chime enabled" : "Chime disabled");
         }
         else if (func == PIN_FUNC_TEST)  // display alarm uptime
         {
@@ -674,12 +721,12 @@ void AlarmManager::processKeyMsg(const char * buf, int bufLen)
             setAlarm();
             sprintf(msg, "Instant Alarm triggered by %s", (pPin+user)->name);
             sendAlertMsg(msg);
-            logMsg("%s\n", msg);
+            logMsg(LOG_DEFAULT, "%s\n", msg);
         }
-        else  // unsupported func NONE, MAX, BYPASS
+        else  // unsupported func NONE, MAX
         {
             setTempMsg(NULL, "Not supported");
-            logMsg("unsupported pin func %d entered by %s\n", func, (pPin+user)->name);
+            logMsg(LOG_DEFAULT, "unsupported pin func %d entered by %s\n", func, (pPin+user)->name);
         }
     }
     updateState();  // update alarm state based on received keypad message

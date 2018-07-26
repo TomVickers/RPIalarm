@@ -25,16 +25,15 @@
 #include "logMsg.h"
 
 // log file
-static FILE * logFile = NULL;
+static FILE * logFile[MAX_DEBUG_LOGS];
 static const char * LOG_MSG_BASENAME = "/var/log/alarmLog";
+static const char * DEBUG_LOG_BASENAME = "/var/log/alarmLog.dbg";
 
 // ring buffer for queuing log messages
-static const int LOG_RING_SIZE = 128;     // max number of messages to queue
+static const int LOG_RING_SIZE = 1024;     // max number of messages to queue
 static const int LOG_MSG_LEN = 256;       // max log message size
 static char ringBuf[LOG_RING_SIZE][LOG_MSG_LEN];
 static int ringIdx = 0;
-
-static bool logAll = false;  // immediately log all messages to log file
 
 bool openLogFile(void);
 void initRingBuf(void);
@@ -42,24 +41,21 @@ void initRingBuf(void);
 bool initLogMsg(void)
 {
     initRingBuf();
+    for (int i=0; i < MAX_DEBUG_LOGS; i++)
+        logFile[i] = NULL;
     return openLogFile();
 }
 
 void finiLogMsg(void)
 {
-    if (logFile != NULL)
+    if (logFile[0] != NULL)
     {
-        fclose(logFile);
-        logFile = NULL;
+        fclose(logFile[0]);
+        logFile[0] = NULL;
     }
 }
 
-void logEverything(bool state)
-{
-    logAll = state;  // set boolean to decide if everything should be logged immediately
-}
-
-/// openLogFile. Returns: pointer to opened file
+/// openLogFile. Returns: true on success
 bool openLogFile(void)
 {
     // keep the last 3 alarm logs
@@ -94,8 +90,8 @@ bool openLogFile(void)
         }
     }
 
-    logFile = fopen(LOG_MSG_BASENAME, "w");
-    if (logFile == NULL)
+    logFile[0] = fopen(LOG_MSG_BASENAME, "w");
+    if (logFile[0] == NULL)
     {
         fprintf(stderr, "Failed to open logMsg file\n");
         return false;
@@ -104,7 +100,7 @@ bool openLogFile(void)
 }
 
 // log messages to ring buffer and possibly file
-void logMsg(const char *fmt, ...) // vararg format
+void logMsg(uint8_t logType, const char *fmt, ...) // vararg format
 {
     if (fmt == NULL)
     {
@@ -137,12 +133,19 @@ void logMsg(const char *fmt, ...) // vararg format
     }
     msg[size] = '\0';  // make sure string is terminated properly
 
-    if (logAll)
+    if (logType > 0)
     {
-        if (logFile != NULL)
+        if (logType < MAX_DEBUG_LOGS)
         {
-            fprintf(logFile, "%s", msg);
-            fflush(logFile);
+            char filename[64];
+            sprintf(filename, "%s%d", DEBUG_LOG_BASENAME, logType);
+            if ((logFile[logType] = fopen(filename, "a")) != NULL)
+            {
+                // append message to debug log N
+                fprintf(logFile[logType], "%s", msg);
+                fclose(logFile[logType]);
+                logFile[logType] = NULL;
+            }
         }
     }
     else // otherwise, add msg to ring buffer
@@ -164,7 +167,7 @@ void initRingBuf(void)
 // flush messages in ring buffer to log file
 void flushMsgRing(void)
 {
-    if (logFile == NULL)
+    if (logFile[0] == NULL)
     {
         fprintf(stderr, "flushMsgRing called with NULL logFile\n");
         return;
@@ -177,13 +180,13 @@ void flushMsgRing(void)
     {
         if (ringBuf[ringIdx] != '\0')
         {
-            fprintf(logFile, "%s", ringBuf[ringIdx]);  // print each msg in ring
+            fprintf(logFile[0], "%s", ringBuf[ringIdx]);  // print each msg in ring
             memset(ringBuf[ringIdx], 0, LOG_MSG_LEN);  // clear ring buf
             count++;
         }
         ringIdx = (ringIdx + 1) % LOG_RING_SIZE;
     }
     fprintf(stderr, "Sent %d messages to alarmLog\n", count);
-    fflush(logFile);
+    fflush(logFile[0]);
 }
 

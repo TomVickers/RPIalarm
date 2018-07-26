@@ -70,7 +70,7 @@ static t_EmailData * initEmailData(t_EmailData * data, const char * to, const ch
 
         if (i >= maxMsgSize)
         {
-            logMsg("initEmailData exceeded max message size! len=%d, max=%d\n", i, maxMsgSize);
+            logMsg(LOG_DEFAULT, "initEmailData exceeded max message size! len=%d, max=%d\n", i, maxMsgSize);
         }
         data->len = i;
     }

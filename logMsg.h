@@ -19,10 +19,19 @@
 
 #include "stdafx.h"
 
+#define MAX_DEBUG_LOGS  (4)  // should be last LOG_DEBUG_N enum + 1
+
+enum t_eLogMsgType
+{
+    LOG_DEFAULT,  // log to default (ring buffer)
+    LOG_DEBUG_1,  // immediately write to dbg1 file
+    LOG_DEBUG_2,  // immediately write to dbg2 file
+    LOG_DEBUG_3   // immediately write to dbg3 file
+};
+
 bool initLogMsg(void);
 void finiLogMsg(void);
-void logEverything(bool state);
-void logMsg(const char *fmt, ...);
+void logMsg(uint8_t logType, const char *fmt, ...);
 void flushMsgRing(void);
 
 // end of logMsg.h

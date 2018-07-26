@@ -62,6 +62,14 @@ bool Loop::init(const char * line)
         }
         else
             success = false;
+
+        if (p + 5 - line < len)
+        {
+            p = Config::nextParm(p+5);
+            bypassAllowed = (strncmp(p, "true", 4) == 0);
+        }
+        else
+            success = false;
     }
     else
         success = false;
@@ -201,7 +209,7 @@ bool Config::readFile(const char * pathAndFilename)
     {
         for (int i=0; i < (int)strlen(lineBuf); i++)
         {
-            if (lineBuf[i] == '\n')   // strip newline 
+            if (lineBuf[i] == '\n' || lineBuf[i] == '\r')   // strip newline and carriage returns
                 lineBuf[i] = '\0';
         }
 
@@ -295,6 +303,7 @@ bool Config::readFile(const char * pathAndFilename)
         else  // eSection == SECTION_NONE
         {
             fprintf(stderr, "readFile error line %d: line outside section\n", lineCount);
+            fprintf(stderr, "  '%s'\n", lineBuf);
             success = false;
         }
         lineCount++;

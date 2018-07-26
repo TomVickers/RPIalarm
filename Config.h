@@ -74,6 +74,7 @@ public:
     char    name[MAX_LOOP_NAME_LENGTH];
     uint8_t chimeTone;
     bool    entryAllowed;
+    bool    bypassAllowed;
 };
 
 class GpioOutput

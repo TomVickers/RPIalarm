@@ -40,7 +40,8 @@ enum {
 enum {
     DISARMED = 0,
     ARMED_STAY,
-    ARMED_AWAY
+    ARMED_AWAY,
+    ARMED_BYPASS  // same as ARMED_STAY, but with a loop bypassed
 };
 
 // elapsed time struct

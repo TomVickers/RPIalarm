@@ -93,13 +93,13 @@ uint8_t Serial::parseMsg(const char * cmd, const int len)
     }
     else if (strncmp(cmd, "ERR_", 4) == 0)  // recv error msg, probably buf overflow
     {
-        logMsg("Err mesg: '%s'\n", cmd);
+        logMsg(LOG_DEFAULT, "Err mesg: '%s'\n", cmd);
         return SERIAL_CMD_ERROR;
     }
 // FIXME - need VOLTS message here
     else
     {
-        logMsg("Unexpected mesg: '%s'\n", cmd);
+        logMsg(LOG_DEFAULT, "Unexpected mesg: '%s'\n", cmd);
     }
     return SERIAL_CMD_NONE;
 }
@@ -115,11 +115,11 @@ void Serial::sendF7msg(AlarmManager * pAlarmManager, int hour, int min)
     
         if (writeBytes == (int)strlen(buf))
         {
-            logMsg("Sent F7 msg to keypad: %s", buf);
+            logMsg(LOG_DEFAULT, "Sent F7 msg to keypad: %s", buf);
         }
         else
         {
-            logMsg("ERR: Short write of F7 msg to keypad: %s", buf);
+            logMsg(LOG_DEFAULT, "ERR: Short write of F7 msg to keypad: %s", buf);
         }
 
         if (pAlarmManager->getAltTextActive())
@@ -131,11 +131,11 @@ void Serial::sendF7msg(AlarmManager * pAlarmManager, int hour, int min)
     
             if (writeBytes == (int)strlen(buf))
             {
-                logMsg("Sent F7A msg to keypad: %s", buf);
+                logMsg(LOG_DEFAULT, "Sent F7A msg to keypad: %s", buf);
             }
             else
             {
-                logMsg("ERR: Short write of F7A msg to keypad: %s", buf);
+                logMsg(LOG_DEFAULT, "ERR: Short write of F7A msg to keypad: %s", buf);
             }
         }
         pAlarmManager->setLastMsgTime();

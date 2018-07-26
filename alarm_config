@@ -22,14 +22,14 @@ Eve            5678
 
 _START_IO_INPUT_SECTION
 
-#TYPE GPIO NAME            OPEN_TONE      VALID_FOR_DELAY_ENTRY
-LOOP   25  Front_Door      TONE_CHIME_2   true
-LOOP   24  Side_Door       TONE_CHIME_3   true
-LOOP   23  Back_Door       TONE_CHIME_1   false
-LOOP   14  Kitchn_Window   TONE_CHIME_1   false
-LOOP   16  Living_Rm_Win   TONE_CHIME_1   false
-LOOP   21  Stair_Window    TONE_CHIME_2   false
-LOOP   20  Front_Window    TONE_CHIME_2   false
+#TYPE GPIO NAME            OPEN_TONE      DELAY_ENTRY BYPASS
+LOOP   25  Front_Door      TONE_CHIME_2   true        false
+LOOP   24  Side_Door       TONE_CHIME_3   true        true
+LOOP   23  Back_Door       TONE_CHIME_1   false       false
+LOOP   14  Kitchn_Window   TONE_CHIME_1   false       false
+LOOP   16  Living_Rm_Win   TONE_CHIME_1   false       false
+LOOP   21  Stair_Window    TONE_CHIME_2   false       false
+LOOP   20  Front_Window    TONE_CHIME_2   false       false
 
 _START_IO_OUTPUT_SECTION
 
